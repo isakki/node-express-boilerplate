@@ -128,6 +128,93 @@ describe('Auth routes', () => {
 
       expect(res.body).toEqual({ code: httpStatus.UNAUTHORIZED, message: 'Incorrect email or password' });
     });
+
+    test('should count failed attempts and reset the counter after a successful login', async () => {
+      await insertUsers([userOne]);
+
+      await request(app)
+        .post('/v1/auth/login')
+        .send({ email: userOne.email, password: 'wrongPassword1' })
+        .expect(httpStatus.UNAUTHORIZED);
+
+      let dbUser = await User.findById(userOne._id);
+      expect(dbUser.failedLoginAttempts).toBe(1);
+
+      await request(app)
+        .post('/v1/auth/login')
+        .send({ email: userOne.email, password: userOne.password })
+        .expect(httpStatus.OK);
+
+      dbUser = await User.findById(userOne._id);
+      expect(dbUser.failedLoginAttempts).toBe(0);
+    });
+
+    test('should reject a correct password with the generic 401 once the failed attempt limit is reached', async () => {
+      await insertUsers([userOne]);
+
+      for (let i = 0; i < config.login.maxFailedAttempts; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await request(app)
+          .post('/v1/auth/login')
+          .send({ email: userOne.email, password: 'wrongPassword1' })
+          .expect(httpStatus.UNAUTHORIZED);
+      }
+
+      const dbUser = await User.findById(userOne._id);
+      expect(dbUser.failedLoginAttempts).toBe(config.login.maxFailedAttempts);
+      expect(dbUser.lockUntil.getTime()).toBeGreaterThan(Date.now());
+
+      const res = await request(app)
+        .post('/v1/auth/login')
+        .send({ email: userOne.email, password: userOne.password })
+        .expect(httpStatus.UNAUTHORIZED);
+
+      // same body as a wrong password or an unknown email, so the lock cannot be used to find registered emails
+      expect(res.body).toEqual({ code: httpStatus.UNAUTHORIZED, message: 'Incorrect email or password' });
+    });
+
+    test('should not check more passwords than the limit when attempts are made in parallel', async () => {
+      await insertUsers([userOne]);
+      const parallelAttempts = config.login.maxFailedAttempts * 3;
+      const compareSpy = jest.spyOn(bcrypt, 'compare');
+
+      const responses = await Promise.all(
+        Array.from({ length: parallelAttempts }, () =>
+          request(app).post('/v1/auth/login').send({ email: userOne.email, password: 'wrongPassword1' })
+        )
+      );
+
+      responses.forEach((res) => expect(res.status).toBe(httpStatus.UNAUTHORIZED));
+      expect(compareSpy).toHaveBeenCalledTimes(config.login.maxFailedAttempts);
+    });
+
+    test('should allow login again and clear the lock once the lock has expired', async () => {
+      await insertUsers([userOne]);
+      await User.updateOne(
+        { _id: userOne._id },
+        { failedLoginAttempts: config.login.maxFailedAttempts, lockUntil: moment().subtract(1, 'minutes').toDate() }
+      );
+
+      await request(app)
+        .post('/v1/auth/login')
+        .send({ email: userOne.email, password: userOne.password })
+        .expect(httpStatus.OK);
+
+      const dbUser = await User.findById(userOne._id);
+      expect(dbUser.lockUntil).toBeUndefined();
+    });
+
+    test('should not expose lockout fields in the response', async () => {
+      await insertUsers([userOne]);
+
+      const res = await request(app)
+        .post('/v1/auth/login')
+        .send({ email: userOne.email, password: userOne.password })
+        .expect(httpStatus.OK);
+
+      expect(res.body.user).not.toHaveProperty('failedLoginAttempts');
+      expect(res.body.user).not.toHaveProperty('lockUntil');
+    });
   });
 
   describe('POST /v1/auth/logout', () => {

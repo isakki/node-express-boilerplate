@@ -18,6 +18,16 @@ const envVarsSchema = Joi.object()
     JWT_VERIFY_EMAIL_EXPIRATION_MINUTES: Joi.number()
       .default(10)
       .description('minutes after which verify email token expires'),
+    LOGIN_MAX_FAILED_ATTEMPTS: Joi.number()
+      .integer()
+      .min(1)
+      .default(5)
+      .description('consecutive failed logins after which an account is locked'),
+    LOGIN_LOCK_MINUTES: Joi.number()
+      .integer()
+      .min(1)
+      .default(15)
+      .description('minutes for which a locked account stays locked'),
     SMTP_HOST: Joi.string().description('server that will send the emails'),
     SMTP_PORT: Joi.number().description('port to connect to the email server'),
     SMTP_USERNAME: Joi.string().description('username for email server'),
@@ -49,6 +59,10 @@ module.exports = {
     refreshExpirationDays: envVars.JWT_REFRESH_EXPIRATION_DAYS,
     resetPasswordExpirationMinutes: envVars.JWT_RESET_PASSWORD_EXPIRATION_MINUTES,
     verifyEmailExpirationMinutes: envVars.JWT_VERIFY_EMAIL_EXPIRATION_MINUTES,
+  },
+  login: {
+    maxFailedAttempts: envVars.LOGIN_MAX_FAILED_ATTEMPTS,
+    lockMinutes: envVars.LOGIN_LOCK_MINUTES,
   },
   email: {
     smtp: {

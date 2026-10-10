@@ -1,4 +1,6 @@
 const httpStatus = require('http-status');
+const moment = require('moment');
+const config = require('../config/config');
 const { User } = require('../models');
 const ApiError = require('../utils/ApiError');
 
@@ -79,6 +81,40 @@ const deleteUserById = async (userId) => {
   return user;
 };
 
+/**
+ * Reserve a login attempt for a user, before the password is checked.
+ * The attempt is counted with a single conditional update, so no more than the configured number
+ * of password checks can run per lock window, however many requests arrive in parallel.
+ * A successful login must call resetFailedLogins to release the reserved attempts.
+ * @param {ObjectId} userId
+ * @returns {Promise<boolean>} false if the account is locked and the password must not be checked
+ */
+const reserveLoginAttempt = async (userId) => {
+  const { maxFailedAttempts, lockMinutes } = config.login;
+
+  // start a new window if the previous one has expired
+  await User.updateOne(
+    { _id: userId, lockUntil: { $lte: new Date() } },
+    { $set: { failedLoginAttempts: 0 }, $unset: { lockUntil: '' } }
+  );
+
+  const user = await User.findOneAndUpdate(
+    { _id: userId, failedLoginAttempts: { $not: { $gte: maxFailedAttempts } } },
+    { $inc: { failedLoginAttempts: 1 }, $set: { lockUntil: moment().add(lockMinutes, 'minutes').toDate() } },
+    { new: true, useFindAndModify: false }
+  );
+  return !!user;
+};
+
+/**
+ * Clear the failed login counter and any lock
+ * @param {ObjectId} userId
+ * @returns {Promise}
+ */
+const resetFailedLogins = async (userId) => {
+  await User.updateOne({ _id: userId }, { $set: { failedLoginAttempts: 0 }, $unset: { lockUntil: '' } });
+};
+
 module.exports = {
   createUser,
   queryUsers,
@@ -86,4 +122,6 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
+  reserveLoginAttempt,
+  resetFailedLogins,
 };
