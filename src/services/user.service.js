@@ -1,4 +1,6 @@
 const httpStatus = require('http-status');
+const moment = require('moment');
+const config = require('../config/config');
 const { User } = require('../models');
 const ApiError = require('../utils/ApiError');
 
@@ -79,6 +81,33 @@ const deleteUserById = async (userId) => {
   return user;
 };
 
+/**
+ * Record a failed login attempt and lock the account once the limit is reached.
+ * The counter is incremented atomically so that concurrent attempts are all counted.
+ * @param {ObjectId} userId
+ * @returns {Promise}
+ */
+const recordFailedLogin = async (userId) => {
+  const user = await User.findOneAndUpdate(
+    { _id: userId },
+    { $inc: { failedLoginAttempts: 1 } },
+    { new: true, useFindAndModify: false }
+  );
+  if (user && user.failedLoginAttempts >= config.login.maxFailedAttempts) {
+    const lockUntil = moment().add(config.login.lockMinutes, 'minutes').toDate();
+    await User.updateOne({ _id: userId }, { $set: { lockUntil, failedLoginAttempts: 0 } });
+  }
+};
+
+/**
+ * Clear the failed login counter and any lock
+ * @param {ObjectId} userId
+ * @returns {Promise}
+ */
+const resetFailedLogins = async (userId) => {
+  await User.updateOne({ _id: userId }, { $set: { failedLoginAttempts: 0 }, $unset: { lockUntil: '' } });
+};
+
 module.exports = {
   createUser,
   queryUsers,
@@ -86,4 +115,6 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
+  recordFailedLogin,
+  resetFailedLogins,
 };

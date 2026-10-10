@@ -44,6 +44,15 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      private: true,
+    },
+    lockUntil: {
+      type: Date,
+      private: true,
+    },
   },
   {
     timestamps: true,
@@ -73,6 +82,15 @@ userSchema.statics.isEmailTaken = async function (email, excludeUserId) {
 userSchema.methods.isPasswordMatch = async function (password) {
   const user = this;
   return bcrypt.compare(password, user.password);
+};
+
+/**
+ * Check if the account is currently locked because of failed login attempts
+ * @returns {boolean}
+ */
+userSchema.methods.isLocked = function () {
+  const user = this;
+  return !!user.lockUntil && user.lockUntil.getTime() > Date.now();
 };
 
 userSchema.pre('save', async function (next) {
