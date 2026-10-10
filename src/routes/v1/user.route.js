@@ -96,12 +96,13 @@ module.exports = router;
  *         name: role
  *         schema:
  *           type: string
+ *           enum: [user, admin]
  *         description: User role
  *       - in: query
  *         name: sortBy
  *         schema:
  *           type: string
- *         description: sort by query in the form of field:desc/asc (ex. name:asc)
+ *         description: sort by query in the form of field:desc/asc (ex. name:asc). Sortable fields are name, email, role and createdAt
  *       - in: query
  *         name: limit
  *         schema:
