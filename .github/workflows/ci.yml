@@ -18,6 +18,12 @@ jobs:
         image: mongo:4.4
         ports:
           - 27017:27017
+        # wait until mongod accepts connections before the steps start
+        options: >-
+          --health-cmd "mongo --quiet --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       PORT: 3000
@@ -40,5 +46,5 @@ jobs:
       - name: Lint
         run: yarn lint
 
-      - name: Test
-        run: yarn test
+      - name: Test with coverage
+        run: yarn coverage
