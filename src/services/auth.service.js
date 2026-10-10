@@ -1,9 +1,24 @@
 const httpStatus = require('http-status');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
-const Token = require('../models/token.model');
+const { Token } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
+
+/**
+ * Verify a token of the given type and load the user it belongs to
+ * @param {string} token
+ * @param {string} type
+ * @returns {Promise<{ tokenDoc: Token, user: User }>}
+ */
+const verifyTokenAndGetUser = async (token, type) => {
+  const tokenDoc = await tokenService.verifyToken(token, type);
+  const user = await userService.getUserById(tokenDoc.user);
+  if (!user) {
+    throw new Error('User not found');
+  }
+  return { tokenDoc, user };
+};
 
 /**
  * Login with username and password
@@ -39,12 +54,8 @@ const logout = async (refreshToken) => {
  */
 const refreshAuth = async (refreshToken) => {
   try {
-    const refreshTokenDoc = await tokenService.verifyToken(refreshToken, tokenTypes.REFRESH);
-    const user = await userService.getUserById(refreshTokenDoc.user);
-    if (!user) {
-      throw new Error();
-    }
-    await refreshTokenDoc.remove();
+    const { tokenDoc, user } = await verifyTokenAndGetUser(refreshToken, tokenTypes.REFRESH);
+    await tokenDoc.remove();
     return tokenService.generateAuthTokens(user);
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
@@ -59,11 +70,7 @@ const refreshAuth = async (refreshToken) => {
  */
 const resetPassword = async (resetPasswordToken, newPassword) => {
   try {
-    const resetPasswordTokenDoc = await tokenService.verifyToken(resetPasswordToken, tokenTypes.RESET_PASSWORD);
-    const user = await userService.getUserById(resetPasswordTokenDoc.user);
-    if (!user) {
-      throw new Error();
-    }
+    const { user } = await verifyTokenAndGetUser(resetPasswordToken, tokenTypes.RESET_PASSWORD);
     await userService.updateUserById(user.id, { password: newPassword });
     await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });
   } catch (error) {
@@ -78,11 +85,7 @@ const resetPassword = async (resetPasswordToken, newPassword) => {
  */
 const verifyEmail = async (verifyEmailToken) => {
   try {
-    const verifyEmailTokenDoc = await tokenService.verifyToken(verifyEmailToken, tokenTypes.VERIFY_EMAIL);
-    const user = await userService.getUserById(verifyEmailTokenDoc.user);
-    if (!user) {
-      throw new Error();
-    }
+    const { user } = await verifyTokenAndGetUser(verifyEmailToken, tokenTypes.VERIFY_EMAIL);
     await Token.deleteMany({ user: user.id, type: tokenTypes.VERIFY_EMAIL });
     await userService.updateUserById(user.id, { isEmailVerified: true });
   } catch (error) {
