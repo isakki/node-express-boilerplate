@@ -161,7 +161,7 @@ describe('Auth routes', () => {
       }
 
       const dbUser = await User.findById(userOne._id);
-      expect(dbUser.isLocked()).toBe(true);
+      expect(dbUser.isLocked(config.login.maxFailedAttempts)).toBe(true);
 
       const res = await request(app)
         .post('/v1/auth/login')
@@ -174,9 +174,29 @@ describe('Auth routes', () => {
       });
     });
 
+    test('should not check more passwords than the limit when attempts are made in parallel', async () => {
+      await insertUsers([userOne]);
+      const parallelAttempts = config.login.maxFailedAttempts * 3;
+
+      const responses = await Promise.all(
+        Array.from({ length: parallelAttempts }, () =>
+          request(app).post('/v1/auth/login').send({ email: userOne.email, password: 'wrongPassword1' })
+        )
+      );
+
+      const statuses = responses.map((res) => res.status);
+      expect(statuses.filter((status) => status === httpStatus.UNAUTHORIZED)).toHaveLength(config.login.maxFailedAttempts);
+      expect(statuses.filter((status) => status === httpStatus.LOCKED)).toHaveLength(
+        parallelAttempts - config.login.maxFailedAttempts
+      );
+    });
+
     test('should allow login again and clear the lock once the lock has expired', async () => {
       await insertUsers([userOne]);
-      await User.updateOne({ _id: userOne._id }, { lockUntil: moment().subtract(1, 'minutes').toDate() });
+      await User.updateOne(
+        { _id: userOne._id },
+        { failedLoginAttempts: config.login.maxFailedAttempts, lockUntil: moment().subtract(1, 'minutes').toDate() }
+      );
 
       await request(app)
         .post('/v1/auth/login')

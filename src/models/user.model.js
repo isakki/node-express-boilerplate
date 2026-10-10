@@ -86,11 +86,12 @@ userSchema.methods.isPasswordMatch = async function (password) {
 
 /**
  * Check if the account is currently locked because of failed login attempts
+ * @param {number} maxFailedAttempts - Number of failed attempts after which an account is locked
  * @returns {boolean}
  */
-userSchema.methods.isLocked = function () {
+userSchema.methods.isLocked = function (maxFailedAttempts) {
   const user = this;
-  return !!user.lockUntil && user.lockUntil.getTime() > Date.now();
+  return user.failedLoginAttempts >= maxFailedAttempts && !!user.lockUntil && user.lockUntil.getTime() > Date.now();
 };
 
 userSchema.pre('save', async function (next) {

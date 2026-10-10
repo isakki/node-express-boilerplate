@@ -82,21 +82,28 @@ const deleteUserById = async (userId) => {
 };
 
 /**
- * Record a failed login attempt and lock the account once the limit is reached.
- * The counter is incremented atomically so that concurrent attempts are all counted.
+ * Reserve a login attempt for a user, before the password is checked.
+ * The attempt is counted with a single conditional update, so no more than the configured number
+ * of password checks can run per lock window, however many requests arrive in parallel.
+ * A successful login must call resetFailedLogins to release the reserved attempts.
  * @param {ObjectId} userId
- * @returns {Promise}
+ * @returns {Promise<boolean>} false if the account is locked and the password must not be checked
  */
-const recordFailedLogin = async (userId) => {
+const reserveLoginAttempt = async (userId) => {
+  const { maxFailedAttempts, lockMinutes } = config.login;
+
+  // start a new window if the previous one has expired
+  await User.updateOne(
+    { _id: userId, lockUntil: { $lte: new Date() } },
+    { $set: { failedLoginAttempts: 0 }, $unset: { lockUntil: '' } }
+  );
+
   const user = await User.findOneAndUpdate(
-    { _id: userId },
-    { $inc: { failedLoginAttempts: 1 } },
+    { _id: userId, failedLoginAttempts: { $not: { $gte: maxFailedAttempts } } },
+    { $inc: { failedLoginAttempts: 1 }, $set: { lockUntil: moment().add(lockMinutes, 'minutes').toDate() } },
     { new: true, useFindAndModify: false }
   );
-  if (user && user.failedLoginAttempts >= config.login.maxFailedAttempts) {
-    const lockUntil = moment().add(config.login.lockMinutes, 'minutes').toDate();
-    await User.updateOne({ _id: userId }, { $set: { lockUntil, failedLoginAttempts: 0 } });
-  }
+  return !!user;
 };
 
 /**
@@ -115,6 +122,6 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
-  recordFailedLogin,
+  reserveLoginAttempt,
   resetFailedLogins,
 };
