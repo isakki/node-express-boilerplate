@@ -110,7 +110,7 @@ module.exports = router;
  *                 tokens:
  *                   $ref: '#/components/schemas/AuthTokens'
  *       "401":
- *         description: Invalid email or password
+ *         description: Invalid email or password. Also returned while an account is temporarily locked after too many failed attempts
  *         content:
  *           application/json:
  *             schema:
@@ -118,15 +118,6 @@ module.exports = router;
  *             example:
  *               code: 401
  *               message: Invalid email or password
- *       "423":
- *         description: Account temporarily locked after too many failed login attempts
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               code: 423
- *               message: Account is temporarily locked due to too many failed login attempts
  */
 
 /**

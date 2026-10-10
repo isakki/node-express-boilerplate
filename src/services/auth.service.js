@@ -17,8 +17,9 @@ const loginUserWithEmailAndPassword = async (email, password) => {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
   }
   // the attempt is counted before the slow password check, so parallel requests cannot all get past the limit
+  // a locked account gets the same response as a wrong password, so the lock does not reveal that the email is registered
   if (!(await userService.reserveLoginAttempt(user.id))) {
-    throw new ApiError(httpStatus.LOCKED, 'Account is temporarily locked due to too many failed login attempts');
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
   }
   if (!(await user.isPasswordMatch(password))) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');

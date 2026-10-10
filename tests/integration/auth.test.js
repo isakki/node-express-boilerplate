@@ -149,7 +149,7 @@ describe('Auth routes', () => {
       expect(dbUser.failedLoginAttempts).toBe(0);
     });
 
-    test('should return 423 once the failed attempt limit is reached, even if the password is correct', async () => {
+    test('should reject a correct password with the generic 401 once the failed attempt limit is reached', async () => {
       await insertUsers([userOne]);
 
       for (let i = 0; i < config.login.maxFailedAttempts; i += 1) {
@@ -167,17 +167,16 @@ describe('Auth routes', () => {
       const res = await request(app)
         .post('/v1/auth/login')
         .send({ email: userOne.email, password: userOne.password })
-        .expect(httpStatus.LOCKED);
+        .expect(httpStatus.UNAUTHORIZED);
 
-      expect(res.body).toEqual({
-        code: httpStatus.LOCKED,
-        message: 'Account is temporarily locked due to too many failed login attempts',
-      });
+      // same body as a wrong password or an unknown email, so the lock cannot be used to find registered emails
+      expect(res.body).toEqual({ code: httpStatus.UNAUTHORIZED, message: 'Incorrect email or password' });
     });
 
     test('should not check more passwords than the limit when attempts are made in parallel', async () => {
       await insertUsers([userOne]);
       const parallelAttempts = config.login.maxFailedAttempts * 3;
+      const compareSpy = jest.spyOn(bcrypt, 'compare');
 
       const responses = await Promise.all(
         Array.from({ length: parallelAttempts }, () =>
@@ -185,11 +184,8 @@ describe('Auth routes', () => {
         )
       );
 
-      const statuses = responses.map((res) => res.status);
-      expect(statuses.filter((status) => status === httpStatus.UNAUTHORIZED)).toHaveLength(config.login.maxFailedAttempts);
-      expect(statuses.filter((status) => status === httpStatus.LOCKED)).toHaveLength(
-        parallelAttempts - config.login.maxFailedAttempts
-      );
+      responses.forEach((res) => expect(res.status).toBe(httpStatus.UNAUTHORIZED));
+      expect(compareSpy).toHaveBeenCalledTimes(config.login.maxFailedAttempts);
     });
 
     test('should allow login again and clear the lock once the lock has expired', async () => {
