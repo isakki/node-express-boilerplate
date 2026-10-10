@@ -15,7 +15,30 @@ const password = (value, helpers) => {
   return value;
 };
 
+/**
+ * Build a validator for the sortBy query param, in the format: field[:(asc|desc)], separated by commas.
+ * The order is optional and defaults to asc
+ * Only the given fields may be sorted on, so private fields such as password can never be used
+ * @param {string[]} allowedFields
+ * @returns {Function}
+ */
+const sortBy = (allowedFields) => (value, helpers) => {
+  const isValid = value.split(',').every((sortOption) => {
+    const [field, order, ...rest] = sortOption.split(':');
+    return (
+      rest.length === 0 && allowedFields.includes(field) && (order === undefined || order === 'asc' || order === 'desc')
+    );
+  });
+  if (!isValid) {
+    return helpers.message(
+      `"{{#label}}" must be a comma separated list of field[:(asc|desc)], using only: ${allowedFields.join(', ')}`
+    );
+  }
+  return value;
+};
+
 module.exports = {
   objectId,
   password,
+  sortBy,
 };

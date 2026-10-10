@@ -306,6 +306,95 @@ describe('User routes', () => {
       });
     });
 
+    test('should return 400 error if sortBy uses a field that is not sortable', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ sortBy: 'password:asc' })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ sortBy: 'name:asc,password:desc' })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+    });
+
+    test('should sort ascending if sortBy has no order', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      const res = await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ sortBy: 'role' })
+        .send()
+        .expect(httpStatus.OK);
+
+      expect(res.body.results[0].id).toBe(admin._id.toHexString());
+    });
+
+    test('should return 400 error if sortBy order is not asc or desc', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ sortBy: 'name:descending' })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+    });
+
+    test('should return 400 error if role filter is not a known role', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ role: 'superuser' })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+    });
+
+    test('should return 400 error if limit is less than 1 or greater than 100', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ limit: 0 })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ limit: 101 })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ limit: 100 })
+        .send()
+        .expect(httpStatus.OK);
+    });
+
+    test('should return 400 error if page is less than 1', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ page: 0 })
+        .send()
+        .expect(httpStatus.BAD_REQUEST);
+    });
+
     test('should limit returned array if limit param is specified', async () => {
       await insertUsers([userOne, userTwo, admin]);
 

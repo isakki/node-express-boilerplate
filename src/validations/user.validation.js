@@ -1,5 +1,9 @@
 const Joi = require('joi');
-const { password, objectId } = require('./custom.validation');
+const { password, objectId, sortBy } = require('./custom.validation');
+const { roles } = require('../config/roles');
+
+const sortableFields = ['name', 'email', 'role', 'createdAt'];
+const maxPageSize = 100;
 
 const createUser = {
   body: Joi.object().keys({
@@ -13,10 +17,10 @@ const createUser = {
 const getUsers = {
   query: Joi.object().keys({
     name: Joi.string(),
-    role: Joi.string(),
-    sortBy: Joi.string(),
-    limit: Joi.number().integer(),
-    page: Joi.number().integer(),
+    role: Joi.string().valid(...roles),
+    sortBy: Joi.string().custom(sortBy(sortableFields)),
+    limit: Joi.number().integer().min(1).max(maxPageSize),
+    page: Joi.number().integer().min(1),
   }),
 };
 
