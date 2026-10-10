@@ -41,7 +41,7 @@
     "es8",
     "es9",
     "jest",
-    "travis",
+    "github-actions",
     "docker",
     "passport",
     "joi",
