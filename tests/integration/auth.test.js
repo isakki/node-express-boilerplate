@@ -161,7 +161,8 @@ describe('Auth routes', () => {
       }
 
       const dbUser = await User.findById(userOne._id);
-      expect(dbUser.isLocked(config.login.maxFailedAttempts)).toBe(true);
+      expect(dbUser.failedLoginAttempts).toBe(config.login.maxFailedAttempts);
+      expect(dbUser.lockUntil.getTime()).toBeGreaterThan(Date.now());
 
       const res = await request(app)
         .post('/v1/auth/login')
