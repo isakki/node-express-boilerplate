@@ -324,6 +324,19 @@ describe('User routes', () => {
         .expect(httpStatus.BAD_REQUEST);
     });
 
+    test('should sort ascending if sortBy has no order', async () => {
+      await insertUsers([userOne, userTwo, admin]);
+
+      const res = await request(app)
+        .get('/v1/users')
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .query({ sortBy: 'role' })
+        .send()
+        .expect(httpStatus.OK);
+
+      expect(res.body.results[0].id).toBe(admin._id.toHexString());
+    });
+
     test('should return 400 error if sortBy order is not asc or desc', async () => {
       await insertUsers([userOne, userTwo, admin]);
 
